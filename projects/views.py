@@ -5,6 +5,7 @@ import numpy as np
 import requests
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
+from django.views.decorators.csrf import ensure_csrf_cookie
 
 from algorithms.pathfinding.utils import solve as solve_pathfinding
 from algorithms.simulation.car import Car
@@ -13,7 +14,7 @@ from algorithms.simulation.utils import latlon_to_xy, xy_to_latlon
 from projects import Timer, logger
 from projects.graph_loading import load_graph
 
-
+@ensure_csrf_cookie
 def map_page(request):
     return render(request, "projects/map.html")
 
@@ -66,6 +67,7 @@ def tile_proxy(request, z, x, y, ext):
 
     return HttpResponse(resp.content, content_type='image/png')
 
+@ensure_csrf_cookie
 def kalman_page(request):
     return render(request, "projects/kalman.html")
 

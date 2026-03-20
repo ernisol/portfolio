@@ -32,6 +32,8 @@ ALLOWED_HOSTS = [h.strip() for h in ALLOWED_HOSTS if h]
 CSRF_TRUSTED_ORIGINS = os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",")
 CSRF_TRUSTED_ORIGINS = [h.strip() for h in CSRF_TRUSTED_ORIGINS if h]
 
+SECURE_PROXY_SSL_HEADER = {"HTTP_X_FORWARDED_PROTO", "https"}
+
 STATIC_ROOT = "/app/static"
 
 # Application definition
