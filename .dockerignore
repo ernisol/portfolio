@@ -1,0 +1,9 @@
+*
+
+!pyproject.toml
+!manage.py
+!saved_graphs/*
+!algorithms/*
+!portfolio/*
+!projects/*
+!uv.lock

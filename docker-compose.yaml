@@ -1,0 +1,26 @@
+services:
+
+  django:
+    build: .
+    container_name: portfolio_app
+    restart: unless-stopped
+    volumes:
+      - static_volume:/app/static
+    env_file:
+      - .env
+
+  nginx:
+    image: nginx:alpine
+    container_name: portfolio_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/certs/erwan-nisol.freeboxos.fr:/certs:ro
+      - static_volume:/static
+    depends_on:
+      - django
+
+volumes:
+  static_volume:

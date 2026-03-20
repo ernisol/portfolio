@@ -1,0 +1,49 @@
+#map {
+    height: 400px;
+}
+
+.chartDiv{
+    max-height: 300px;
+}
+
+#timeline{
+    width: 100%;
+    margin: 10px 0;
+}
+
+.legend {
+    background: white;
+    padding: 10px;
+    border-radius: 6px;
+    box-shadow: 0 0 6px rgba(0,0,0,0.3);
+    font-family: sans-serif;
+    font-size: 14px;
+}
+
+.legend h4 {
+    margin: 0 0 5px 0;
+}
+
+.legend div {
+    display: flex;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.box {
+    width: 14px;
+    height: 14px;
+    margin-right: 6px;
+}
+
+.frontier {
+    background: green;
+}
+
+.path {
+    background: purple;
+}
+
+.visited {
+    background: orange;
+}

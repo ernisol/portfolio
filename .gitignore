@@ -1,0 +1,28 @@
+# Env
+.env
+certs/
+*.pem
+
+# Tooling
+.venv/
+.nox/
+.ruff_cache
+.mypy_cache
+
+# VSCode
+__pycache__
+
+# Build
+*.egg-info/
+
+# Others
+scripts/
+
+# OpenStreetMap caches
+saved_graphs/
+cache/
+
+# Dev django DB
+db.sqlite3
+
+notes_to_self.txt

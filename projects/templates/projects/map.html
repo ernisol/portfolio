@@ -1,0 +1,32 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="{% static 'projects/main.css' %}">
+
+    <link rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+</head>
+<body>
+
+<div id="map"></div>
+
+<input id="timeline" type="range" min="1" max="1000" value="1">
+<label for="algorithm">Algorithm:</label>
+<select id="algorithm">
+    <option value="bfs">BFS</option>
+    <option value="djikstra">Dijkstra</option>
+    <option value="a_star">A*</option>
+</select>
+<br>
+<button id="run">Run</button>
+<button id="play">Play</button>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
+<script src="{% static 'projects/map.js' %}"></script>
+
+</body>
+</html>
