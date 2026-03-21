@@ -1,14 +1,30 @@
-#map {
-    height: 400px;
+.mapWithControls{
+    height: 65vh;
+}
+#map{
+    height: 55vh;
+    border-color: black;
+    border-style: solid;
 }
 
 .chartDiv{
     max-height: 300px;
+    max-width: 65vw;
 }
 
 #timeline{
     width: 100%;
     margin: 10px 0;
+}
+
+.col3{
+display: grid;
+  grid-template-columns: 15% auto 15%;
+}
+
+.scrollableDiv{
+    height: 30vh;
+    overflow-y: scroll;
 }
 
 .legend {

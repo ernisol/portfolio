@@ -7,3 +7,4 @@
 !portfolio/*
 !projects/*
 !uv.lock
+!.env

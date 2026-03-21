@@ -1,4 +1,4 @@
-""" Implementation of Breadth-First Search (BFS) algorithm for pathfinding in a graph. """
+"""Implementation of Breadth-First Search (BFS) algorithm for pathfinding in a graph."""
 
 from collections import deque
 
@@ -9,7 +9,7 @@ def bfs(graph: MultiDiGraph, start: int, goal: int) -> tuple[list[int], list[int
     visited = set()
     queue = deque([(start, [start])])
     explored_nodes = []
-    parent = {start: None}
+    parent: dict[int, int | None] = {start: None}
 
     while queue:
         current, path = queue.popleft()
@@ -25,9 +25,9 @@ def bfs(graph: MultiDiGraph, start: int, goal: int) -> tuple[list[int], list[int
                     parent[neighbor] = current
                     queue.append((neighbor, path + [neighbor]))
     path = []
-    current = goal
-    while current is not None:
-        path.append(current)
-        current = parent[current]
+    backtracker: int | None = goal
+    while backtracker is not None:
+        path.append(backtracker)
+        backtracker = parent[backtracker]
     path.reverse()
     return explored_nodes, path

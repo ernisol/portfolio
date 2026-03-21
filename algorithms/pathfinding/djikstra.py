@@ -1,10 +1,18 @@
-""" Implementation of Dijkstra's algorithm for pathfinding in a graph. """
+"""Implementation of Dijkstra's algorithm for pathfinding in a graph."""
+
 from queue import PriorityQueue
+from typing import Callable
 
 from networkx import MultiDiGraph
 
 
-def djikstra(graph: MultiDiGraph, start: int, goal: int, heuristic: callable=None) -> tuple[list[int], list[int]]:
+def djikstra(
+    graph: MultiDiGraph,
+    start: int,
+    goal: int,
+    heuristic: Callable[[dict, dict], float] | None = None,
+) -> tuple[list[int], list[int]]:
+
     visited = set()
     queue: PriorityQueue = PriorityQueue()
     queue.put((0, start, [start]))

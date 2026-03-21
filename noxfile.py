@@ -5,9 +5,13 @@ import nox
 nox.options.default_venv_backend = "uv"
 
 
+@nox.session
+def black(session):
+    session.run("uv", "run", "python", "-m", "black", ".")
+
 
 @nox.session
-def lint(session):
+def ruff(session):
     session.run("ruff", "check", ".", "--fix")
     session.run("ruff", "check", ".")
 

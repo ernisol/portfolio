@@ -1,4 +1,4 @@
-""" Implementation of A* algorithm for pathfinding in a graph. """
+"""Implementation of A* algorithm for pathfinding in a graph."""
 
 from networkx import MultiDiGraph
 from osmnx.distance import great_circle

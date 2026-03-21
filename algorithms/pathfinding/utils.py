@@ -1,5 +1,7 @@
 """Utils related to pathfinding"""
 
+from typing import Callable
+
 from networkx import MultiDiGraph
 from osmnx import nearest_nodes
 from osmnx.distance import great_circle
@@ -8,7 +10,7 @@ from algorithms.pathfinding.a_star import a_star
 from algorithms.pathfinding.bfs import bfs
 from algorithms.pathfinding.djikstra import djikstra
 
-AVAILABLE_SOLVERS = {
+AVAILABLE_SOLVERS: dict[str, Callable[[MultiDiGraph, int, int], tuple[list[int], list[int]]]] = {
     "bfs": bfs,
     "djikstra": djikstra,
     "a_star": a_star,
@@ -27,12 +29,15 @@ def path_length(graph: MultiDiGraph, path: list[int]) -> float:
     return length
 
 
-def solve(graph: MultiDiGraph, start:tuple[float, float], goal: tuple[float, float], alg: str):
+def solve(graph: MultiDiGraph, start: tuple[float, float], goal: tuple[float, float], alg: str):
     if alg not in AVAILABLE_SOLVERS:
-        raise ValueError(f"{alg=} is not a valid solver. Available solvers: {', '.join(AVAILABLE_SOLVERS.keys())}")
-    
+        raise ValueError(
+            f"{alg=} is not a valid solver. "
+            f"Available solvers: {', '.join(AVAILABLE_SOLVERS.keys())}"
+        )
+
     start_node = nearest_nodes(graph, start[1], start[0])
-    goal_node  = nearest_nodes(graph, goal[1], goal[0])
+    goal_node = nearest_nodes(graph, goal[1], goal[0])
 
     solver = AVAILABLE_SOLVERS[alg]
     visited, path = solver(graph, start_node, goal_node)

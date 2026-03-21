@@ -11,20 +11,40 @@
 </head>
 <body>
 
-<div id="map"></div>
+<div class="mapWithControls">
+    <div class="col3">
+        <div class="spacer"></div>
+        <div id="map"></div>
+        <div class="spacer"></div>
+        <div class="spacer"></div>
+        <input id="timeline" type="range" min="1" max="1000" value="1">
+        <div class="spacer"></div>
+        <div class="spacer"></div>
+        <div class="controls">
+            <button id="run">Run</button>
+            <button id="play">Play</button>
+        </div>
+        <div class="spacer"></div>
+    </div>
+</div>
 
-<input id="timeline" type="range" min="1" max="1000" value="1">
-<br>
-<button id="run">Run</button>
-<button id="play">Play</button>
-<div class="chartDiv">
-    <canvas id="errChart"></canvas>
-</div>
-<div class="chartDiv">
-    <canvas id="speedChart"></canvas>
-</div>
-<div class="chartDiv">
-    <canvas id="accChart"></canvas>
+
+<div class="graphs">
+    <div class="col3">
+        <div class="spacer"></div>
+        <div class="scrollableDiv">
+            <div class="chartDiv">
+                <canvas id="errChart"></canvas>
+            </div>
+            <div class="chartDiv">
+                <canvas id="speedChart"></canvas>
+            </div>
+            <div class="chartDiv">
+                <canvas id="accChart"></canvas>
+            </div>
+        </div>
+        <div class="spacer"></div>
+    </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

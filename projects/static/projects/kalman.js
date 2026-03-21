@@ -60,6 +60,13 @@ const accChart = new Chart(accChartCtx, {
             pointRadius: 0
         },
         {
+            label: 'Measured',
+            data: [],
+            borderColor: 'orange',
+            borderWidth: 2,
+            pointRadius: 0
+        },
+        {
             label: 'Kalman',
             data: [],
             borderColor: 'red',
@@ -74,7 +81,7 @@ const accChart = new Chart(accChartCtx, {
         parsing: false,
         scales: {
             x: { type: 'linear', title: { display: true, text: 'Time (s)' }},
-            y: { title: { display: true, text: 'Acceleration (m/s²)' }}
+            y: { title: { display: true, text: 'Acceleration (m/s²)' }, max: 2}
         }
     }
 });
@@ -302,7 +309,7 @@ async function renderCar(time) {
 
     L.circleMarker([dr[0], dr[1]], {
         radius: 6,
-        color: "yellow",
+        color: "orange",
         fillOpacity: 1,
     }).addTo(carLayer);
 
@@ -332,7 +339,8 @@ async function renderCar(time) {
     speedChart.update();
 
     accChart.data.datasets[0].data = toXY(simulationData.ground_truth.slice(0, positionIndex), "time", "acceleration");
-    accChart.data.datasets[1].data = toXY(simulationData.kalman.slice(0, kalmanIndex), "time", "acceleration");
+    accChart.data.datasets[1].data = toXY(simulationData.acceleration.slice(0, positionIndex), "time", "acceleration");
+    accChart.data.datasets[2].data = toXY(simulationData.kalman.slice(0, kalmanIndex), "time", "acceleration");
     accChart.update();
 
     errChart.data.datasets[0].data = toXY(simulationData.kalman.slice(0, kalmanIndex), "time", "error");
