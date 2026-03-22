@@ -2,54 +2,54 @@
 
 <!DOCTYPE html>
 <html>
+
 <head>
     <link rel="stylesheet" href="{% static 'projects/main.css' %}">
-
-    <link rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.21.0/dist/maplibre-gl.css" />
 
 </head>
+
 <body>
 
-<div class="mapWithControls">
-    <div class="col3">
-        <div class="spacer"></div>
-        <div id="map"></div>
-        <div class="spacer"></div>
-        <div class="spacer"></div>
-        <input id="timeline" type="range" min="1" max="1000" value="1">
-        <div class="spacer"></div>
-        <div class="spacer"></div>
-        <div class="controls">
-            <button id="run">Run</button>
-            <button id="play">Play</button>
+    <div class="mapWithControls">
+        <div class="col3">
+            <div class="spacer"></div>
+            <div id="map"></div>
+            <div class="spacer"></div>
+            <div class="spacer"></div>
+            <input id="timeline" type="range" min="1" max="1000" value="1">
+            <div class="spacer"></div>
+            <div class="spacer"></div>
+            <div class="controls">
+                <button id="run">Run</button>
+                <button id="play">Play</button>
+            </div>
+            <div class="spacer"></div>
         </div>
-        <div class="spacer"></div>
     </div>
-</div>
 
 
-<div class="graphs">
-    <div class="col3">
-        <div class="spacer"></div>
-        <div class="scrollableDiv">
-            <div class="chartDiv">
-                <canvas id="errChart"></canvas>
+    <div class="graphs">
+        <div class="col3">
+            <div class="spacer"></div>
+            <div class="scrollableDiv">
+                <div class="chartDiv">
+                    <canvas id="errChart"></canvas>
+                </div>
+                <div class="chartDiv">
+                    <canvas id="speedChart"></canvas>
+                </div>
+                <div class="chartDiv">
+                    <canvas id="accChart"></canvas>
+                </div>
             </div>
-            <div class="chartDiv">
-                <canvas id="speedChart"></canvas>
-            </div>
-            <div class="chartDiv">
-                <canvas id="accChart"></canvas>
-            </div>
+            <div class="spacer"></div>
         </div>
-        <div class="spacer"></div>
     </div>
-</div>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
-<script src="{% static 'projects/kalman.js' %}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/maplibre-gl@5.21.0/dist/maplibre-gl.js"></script>
+    <script src="{% static 'projects/kalman.js' %}"></script>
 
 </body>
+
 </html>

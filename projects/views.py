@@ -1,13 +1,12 @@
 import json
-import os
 
 import numpy as np
-import requests
 from cachetools import LRUCache
-from django.http import HttpResponse, JsonResponse
+from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import ensure_csrf_cookie
 
+from algorithms.utils import feature_collection, line_feature, point_feature, polygon_feature
 from algorithms.pathfinding.utils import solve as solve_pathfinding
 from algorithms.simulation.car import Car
 from algorithms.simulation.estimators import KalmanCarFilter, dead_reckoning
@@ -42,43 +41,31 @@ def solve_map_pathfinding(request):
 
     # Add metadata:
     metadata = {
-        "visited_count": len(visited),
-        "path_length": path_length,
-        "time": task_timer.elapsed,
+        "visited_count": int(len(visited)),
+        "path_length": float(path_length),
+        "time": float(task_timer.elapsed),
     }
 
-    return JsonResponse({"visited": visited, "path": path, "metadata": metadata})
+    visited_features = []
+    for idx, (lat, lon) in enumerate(visited):
+        visited_features.append(
+            point_feature(
+                lon=float(lon),
+                lat=float(lat),
+                properties={"index": idx, "series": "visited"},
+            )
+        )
 
+    path_coords = [[float(lon), float(lat)] for lat, lon in path]
+    path_feature = line_feature(path_coords, properties={"series": "path"})
 
-def tile_proxy(request, z, x, y, ext):
-
-    # Only treat png requests
-    if ext != "png":
-        return HttpResponse(status=404)
-
-    # Use a cache to avoid over-using requests to the tiler api.
-    cache_key = (x, y, z)
-    if cache_key in TILE_CACHE:
-        logger.info(f"Cache hit for {cache_key=}")
-        return HttpResponse(TILE_CACHE[cache_key], content_type="image/png")
-
-    # Request the map tile
-    # Prepare maptiler API key (secret)
-    MAPTILER_API_KEY = os.getenv("MAPTILER_API_KEY")
-    if MAPTILER_API_KEY is None:
-        logger.warning("No API key for map tiler.")
-        return HttpResponse(status=500)
-
-    url = f"https://api.maptiler.com/maps/aquarelle-v4/{z}/{x}/{y}.png?key={MAPTILER_API_KEY}"
-    resp = requests.get(url)
-
-    if resp.status_code != 200 or resp.headers.get("Content-Type") != "image/png":
-        return HttpResponse("Tile fetch error", status=resp.status_code)
-
-    # Cache for re-use
-    TILE_CACHE[cache_key] = resp.content
-
-    return HttpResponse(resp.content, content_type="image/png")
+    return JsonResponse(
+        {
+            "visited_points": feature_collection(visited_features),
+            "path_lines": feature_collection([path_feature]),
+            "metadata": metadata,
+        }
+    )
 
 
 @ensure_csrf_cookie
@@ -142,33 +129,105 @@ def solve_kalman(request):
         kalman_filter = KalmanCarFilter(car=car, process_std=0.1)
         kalman_output = kalman_filter.estimate_all()
 
-    # Finally, return the simulated GPS and acceleration measurements as JSON
+    ground_truth_features = []
+    ground_truth_line = []
+    for t, pos, vel, acc in zip(
+        car.time,
+        car.positions_as_latlon,
+        car.velocities,
+        car.accelerations,
+        strict=True,
+    ):
+        lat, lon = pos
+        lonlat = [float(lon), float(lat)]
+        ground_truth_line.append(lonlat)
+        ground_truth_features.append(
+            point_feature(
+                lon=float(lon),
+                lat=float(lat),
+                properties={
+                    "time": float(t),
+                    "series": "ground_truth",
+                    "speed": float(np.linalg.norm(vel)),
+                    "acceleration": float(np.linalg.norm(acc)),
+                },
+            )
+        )
+
+    gps_features = []
+    for gps_data in car.gps_measurements:
+        lat, lon = gps_data["position"]
+        gps_features.append(
+            point_feature(
+                lon=float(lon),
+                lat=float(lat),
+                properties={
+                    "time": float(gps_data["time"]),
+                    "series": "gps",
+                    "error": float(gps_data["error"]),
+                },
+            )
+        )
+
+    dead_reckoning_features = []
+    for t, dr, dre in zip(car.time, dead_reckoning_estimations, dead_reckoning_error, strict=True):
+        dr_lat, dr_lon = dr
+        dead_reckoning_features.append(
+            point_feature(
+                lon=float(dr_lon),
+                lat=float(dr_lat),
+                properties={
+                    "time": float(t),
+                    "series": "dead_reckoning",
+                    "error": float(dre),
+                },
+            )
+        )
+
+    kalman_features = []
+    kalman_ellipse_features = []
+    for state in kalman_output:
+        kalman_lat, kalman_lon = state["position"]
+        kalman_features.append(
+            point_feature(
+                lon=float(kalman_lon),
+                lat=float(kalman_lat),
+                properties={
+                    "time": float(state["time"]),
+                    "series": "kalman",
+                    "speed": float(state["speed"]),
+                    "acceleration": float(state["acceleration"]),
+                    "error": float(state["error"]),
+                },
+            )
+        )
+
+        ellipse_ring = [[float(lon), float(lat)] for lat, lon in state["ellipse"]]
+        if ellipse_ring and ellipse_ring[0] != ellipse_ring[-1]:
+            ellipse_ring.append(ellipse_ring[0])
+        kalman_ellipse_features.append(
+            polygon_feature(
+                coords=[ellipse_ring],
+                properties={
+                    "time": float(state["time"]),
+                    "series": "kalman_ellipse",
+                    "confidence": 0.95,
+                },
+            )
+        )
+
     measurements = {
-        "gps": car.gps_measurements,
-        "acceleration": [
-            {"time": t, "acceleration": np.linalg.norm(acc)} for t, acc in car.acc_measurements
-        ],
-        "estimators": [
-            {"time": t, "dead_reckoning": dr, "dead_reckoning_error": dre}
-            for t, dr, dre in zip(
-                car.time, dead_reckoning_estimations, dead_reckoning_error, strict=True
-            )
-        ],
-        "kalman": kalman_output,
-        "ground_truth": [
-            {
-                "time": t,
-                "position": pos,
-                "speed": np.linalg.norm(vel),
-                "acceleration": np.linalg.norm(acc),
-            }
-            for t, pos, vel, acc in zip(
-                car.time,
-                car.positions_as_latlon,
-                car.velocities,
-                car.accelerations,
-                strict=True,
-            )
+        "ground_truth_path": feature_collection(
+            [line_feature(ground_truth_line, properties={"series": "ground_truth_path"})]
+        ),
+        "ground_truth_points": feature_collection(ground_truth_features),
+        "gps_points": feature_collection(gps_features),
+        "dead_reckoning_points": feature_collection(dead_reckoning_features),
+        "kalman_points": feature_collection(kalman_features),
+        "kalman_ellipses": feature_collection(kalman_ellipse_features),
+        "acceleration_series": [
+            {"time": float(t), "acceleration": float(np.linalg.norm(acc))}
+            for t, acc in car.acc_measurements
         ],
     }
     return JsonResponse(measurements)

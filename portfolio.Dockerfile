@@ -23,9 +23,9 @@ RUN uv sync
 
 # Copy the rest
 COPY . /app/
-# Collect static files
-RUN uv run manage.py collectstatic --noinput
+
 # Expose port (Django/gunicorn)
 EXPOSE 8080
 # Start gunicorn
-CMD ["uv", "run", "gunicorn", "portfolio.wsgi:application", "--bind", "0.0.0.0:8080", "--workers", "2", "--threads", "2"]
+RUN chmod +x /app/entrypoint.sh
+ENTRYPOINT [ "/app/entrypoint.sh" ]

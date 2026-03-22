@@ -6,102 +6,129 @@ const height = 14;
 const animationSteps = 100;
 const animationDuration = 5000; // Total duration of the animation in milliseconds
 const animationSpeed = animationDuration / animationSteps;
+const MAP_STYLE_URL = "/tiles/styles/basic-preview/style.json";
 
+function normalizeAbsoluteUrl(url) {
+    if (/^https?:\/\//i.test(url)) {
+        return url;
+    }
+    return new URL(url, window.location.origin).toString();
+}
 
-const map = L.map('map').setView([lat, lng], height);
+const map = new maplibregl.Map({
+    container: "map",
+    style: MAP_STYLE_URL,
+    transformRequest: (url) => ({
+        url: normalizeAbsoluteUrl(url),
+    }),
+    center: [lng, lat],
+    zoom: height,
+    minZoom: height - 1,
+    maxBounds: [
+        [lng - 0.1, lat - 0.1],
+        [lng + 0.1, lat + 0.1],
+    ],
+    attributionControl: true,
+});
+
+map.dragRotate.disable();
+map.touchZoomRotate.disableRotation();
+
+const OLD_NODES_SOURCE_ID = "pathfinding-old-nodes-source";
+const OLD_NODES_LAYER_ID = "pathfinding-old-nodes-layer";
+const RECENT_NODES_SOURCE_ID = "pathfinding-recent-nodes-source";
+const RECENT_NODES_LAYER_ID = "pathfinding-recent-nodes-layer";
+const PATH_SOURCE_ID = "pathfinding-path-source";
+const PATH_LAYER_ID = "pathfinding-path-layer";
+const HULL_SOURCE_ID = "pathfinding-hull-source";
+const HULL_FILL_LAYER_ID = "pathfinding-hull-fill-layer";
+const HULL_LINE_LAYER_ID = "pathfinding-hull-line-layer";
+
+let mapReadyResolve;
+const mapReady = new Promise((resolve) => {
+    mapReadyResolve = resolve;
+});
+
+map.on("load", () => {
+    ensureMapLayers();
+    addLegendControl();
+    mapReadyResolve();
+});
+
 const slider = document.getElementById("timeline");
 slider.max = animationSteps;
 slider.addEventListener("input", () => {
     const value = sliderToStep(Number(slider.value));
     render(value);
 });
+
 // Blue start marker, red end marker
-var startMarker = L.marker([lat-0.01, lng-0.01]).addTo(map).setIcon(L.icon({iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',  iconSize: [25, 41], iconAnchor: [12, 41]}));
-var endMarker = L.marker([lat + 0.01, lng + 0.01]).addTo(map).setIcon(L.icon({iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', iconSize: [25, 41], iconAnchor: [12, 41]}));
+var startMarker = new maplibregl.Marker({
+    element: buildMarkerElement(
+        "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png"
+    ),
+    anchor: "bottom",
+})
+    .setLngLat([lng - 0.01, lat - 0.01])
+    .addTo(map);
+
+var endMarker = new maplibregl.Marker({
+    element: buildMarkerElement(
+        "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png"
+    ),
+    anchor: "bottom",
+})
+    .setLngLat([lng + 0.01, lat + 0.01])
+    .addTo(map);
+
 var settingStart = false;
 var settingEnd = false;
 
 let playing = false;
 
-var previousHull = null;
-var previousPath = null;
 const hullCache = [];
 
 var visitedNodes = [];
 var finalPath = [];
 
-startMarker.on('click', function() {
+function sortedByIndex(features) {
+    return [...features].sort((a, b) => a.properties.index - b.properties.index);
+}
+
+startMarker.getElement().addEventListener("click", function (event) {
+    event.stopPropagation();
     settingStart = true;
     settingEnd = false;
     // Fade the start marker 50% to indicate it's selected
-    startMarker.setOpacity(0.5);
+    startMarker.getElement().style.opacity = "0.5";
 });
 
-endMarker.on('click', function() {
+endMarker.getElement().addEventListener("click", function (event) {
+    event.stopPropagation();
     settingStart = false;
     settingEnd = true;
     // Fade the end marker 50% to indicate it's selected
-    endMarker.setOpacity(0.5);
+    endMarker.getElement().style.opacity = "0.5";
 });
 
-map.on('click', 
-    function(e) {
-        const lat = e.latlng.lat;
-        const lon = e.latlng.lng;
+map.on("click",
+    function (e) {
+        const clickedLat = e.lngLat.lat;
+        const clickedLon = e.lngLat.lng;
 
         if (settingStart) {
-            startMarker.setLatLng([lat, lon]);
+            startMarker.setLngLat([clickedLon, clickedLat]);
             // Restore opacity of the start marker
-            startMarker.setOpacity(1.0);
+            startMarker.getElement().style.opacity = "1.0";
         } else if (settingEnd) {
-            endMarker.setLatLng([lat, lon]);
+            endMarker.setLngLat([clickedLon, clickedLat]);
             // Restore opacity of the end marker
-            endMarker.setOpacity(1.0);
+            endMarker.getElement().style.opacity = "1.0";
         }
         settingEnd = false;
         settingStart = false;
     }
 );
-
-const bounds = [
-    [lat - 0.1, lng - 0.1],
-    [lat + 0.1, lng + 0.1]
-];
-map.setMaxBounds(bounds);
-
-
-
-L.tileLayer('/projects/api/tiles/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors &copy; MapTiler',
-    style: 'dark',
-    maxBounds: bounds,  // Limit panning around the center of Paris
-    maxBoundsViscosity: 1.0,
-    minZoom: height - 1, // Allow zooming out one level to see the context
-    zoomControl: true,
-    dragging: true,
-    boxZoom: false,
-    keyboard: false,
-}).addTo(map);
-
-const nodeLayer = L.layerGroup().addTo(map);
-
-const legend = L.control({ position: "bottomright" });
-
-legend.onAdd = function(map) {
-
-    const div = L.DomUtil.create("div", "legend");
-
-    div.innerHTML = `
-        <h4>Legend</h4>
-        <div><span class="box visited"></span> Visited </div>
-        <div><span class="box frontier"></span> Frontier</div>
-        <div><span class="box path"></span> Shortest path</div>
-    `;
-
-    return div;
-};
-
-legend.addTo(map);
 
 const playButton = document.getElementById("play");
 
@@ -118,35 +145,45 @@ playButton.onclick = () => {
 // Run button
 
 document.getElementById("run").onclick = async () => {
+    await mapReady;
+
     // stop playback if it's running
     playing = false;
-    const startLatLng = startMarker.getLatLng();
-    const endLatLng = endMarker.getLatLng();
+    const startLatLng = startMarker.getLngLat();
+    const endLatLng = endMarker.getLngLat();
 
-    const response = await fetch("/projects/api/solve/",{
-        method:"POST",
-        headers:{
-            "Content-Type":"application/json",
+    const response = await fetch("/projects/api/solve/", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
             "X-CSRFToken": csrftoken
         },
-        body:JSON.stringify({
-            start:[startLatLng.lat, startLatLng.lng],
-            goal:[endLatLng.lat, endLatLng.lng],
+        body: JSON.stringify({
+            start: [startLatLng.lat, startLatLng.lng],
+            goal: [endLatLng.lat, endLatLng.lng],
             alg: document.getElementById("algorithm").value
         })
     });
-    const data = await response.json();
-    visitedNodes = data.visited;
-    finalPath = data.path;
 
-    buildHullCache()
+    if (!response.ok) {
+        return;
+    }
+
+    const data = await response.json();
+    const visitedFeatures = sortedByIndex(data.visited_points.features);
+    visitedNodes = visitedFeatures.map(feature => feature.geometry.coordinates);
+
+    const pathFeature = data.path_lines.features[0];
+    finalPath = pathFeature ? pathFeature.geometry.coordinates : [];
+
+    buildHullCache();
     slider.value = 0;
     slider.dispatchEvent(new Event("input"));
     playButton.click();
-    
+
 };
 
-async function buildHullCache(){
+async function buildHullCache() {
     hullCache.length = 0;
     for (let i = 0; i < animationSteps; i++) {
 
@@ -162,9 +199,13 @@ async function buildHullCache(){
 }
 
 function computeHull(nodes) {
-    
-    const points = nodes.map(([lat, lon]) =>
-        turf.point([lon, lat])
+
+    if (nodes.length < 3) {
+        return null;
+    }
+
+    const points = nodes.map((coordinates) =>
+        turf.point(coordinates)
     );
 
     const featureCollection = turf.featureCollection(points);
@@ -174,43 +215,29 @@ function computeHull(nodes) {
 }
 
 async function render(step) {
-    
+    await mapReady;
+
+    if (visitedNodes.length === 0) {
+        return;
+    }
 
     const t0 = (step - 4) / (animationSteps - 1);
     const t1 = (step - 2) / (animationSteps - 1);
     const t2 = step / (animationSteps - 1);
-    const firstNode = Math.max(0, Math.floor(t0* t0 * (3 - 2 * t0) * visitedNodes.length));
-    const secondNode = Math.max(0, Math.floor(t1* t1 * (3 - 2 * t1) * visitedNodes.length));
-    const lastNode = Math.max(10, Math.ceil(t2* t2 * (3 - 2 * t2) * visitedNodes.length));
+    const firstNode = Math.max(0, Math.floor(t0 * t0 * (3 - 2 * t0) * visitedNodes.length));
+    const secondNode = Math.max(0, Math.floor(t1 * t1 * (3 - 2 * t1) * visitedNodes.length));
+    const lastNode = Math.max(10, Math.ceil(t2 * t2 * (3 - 2 * t2) * visitedNodes.length));
     const oldNodes = visitedNodes.slice(firstNode, secondNode);
     const recentNodes = visitedNodes.slice(secondNode, lastNode);
 
-    nodeLayer.clearLayers();
-    oldNodes.forEach(([lat, lon]) => {
-        L.circleMarker([lat, lon], {
-            radius: 1,
-            color: 'rgb(189, 241, 0)',
-            fillOpacity: 1
-        }).addTo(nodeLayer);
-    });
-    recentNodes.forEach(([lat, lon]) => {
-        L.circleMarker([lat, lon], {
-            radius: 4,
-            color: 'yellow',
-            fillOpacity: 1
-        }).addTo(nodeLayer);
-    });
+    updatePointSource(OLD_NODES_SOURCE_ID, oldNodes);
+    updatePointSource(RECENT_NODES_SOURCE_ID, recentNodes);
 
-    if (step >= animationSteps-1) {
-        if (previousPath) {
-            map.removeLayer(previousPath);
-        }
-        const pathCoords = finalPath.map(([lat, lon]) => [lat, lon]);
-        previousPath = L.polyline(pathCoords, {color: "purple", weight: 5}).addTo(map);
+    if (step >= animationSteps - 1) {
+        updateLineSource(PATH_SOURCE_ID, finalPath);
     }
-    else if (previousPath) {
-        map.removeLayer(previousPath);
-        previousPath = null;
+    else {
+        updateLineSource(PATH_SOURCE_ID, []);
     }
 
     if (step >= hullCache.length) {
@@ -218,22 +245,12 @@ async function render(step) {
         return;
     }
     const hull = hullCache[step];
-    if (!hull) console.warn("No hull for step", step);
-    console.log("Rendering step", step, "with", hullCache[step].geometry.coordinates[0].length, "hull points");
-    const hullCoords = hull.geometry.coordinates[0].map(([lon, lat]) => [lat, lon]);
-
-    if (!previousHull) {
-
-        previousHull = L.polygon(hullCoords, {
-            color: "green",
-            fillOpacity: 0.2
-        }).addTo(map);
-        
-    } else {
-
-        previousHull.setLatLngs(hullCoords);
-
+    if (!hull) {
+        updateHullSource(null);
+        return;
     }
+
+    updateHullSource(hull);
 
 }
 
@@ -283,4 +300,171 @@ function getCookie(name) {
     }
 
     return cookieValue;
+}
+
+function buildMarkerElement(iconUrl) {
+    const el = document.createElement("img");
+    el.src = iconUrl;
+    el.style.width = "25px";
+    el.style.height = "41px";
+    el.style.cursor = "pointer";
+    el.style.userSelect = "none";
+    return el;
+}
+
+function ensureMapLayers() {
+    ensureGeoJsonSource(OLD_NODES_SOURCE_ID);
+    ensureGeoJsonSource(RECENT_NODES_SOURCE_ID);
+    ensureGeoJsonSource(PATH_SOURCE_ID);
+    ensureGeoJsonSource(HULL_SOURCE_ID);
+
+    if (!map.getLayer(OLD_NODES_LAYER_ID)) {
+        map.addLayer({
+            id: OLD_NODES_LAYER_ID,
+            type: "circle",
+            source: OLD_NODES_SOURCE_ID,
+            paint: {
+                "circle-radius": 1,
+                "circle-color": "rgb(189, 241, 0)",
+                "circle-opacity": 1,
+            },
+        });
+    }
+
+    if (!map.getLayer(RECENT_NODES_LAYER_ID)) {
+        map.addLayer({
+            id: RECENT_NODES_LAYER_ID,
+            type: "circle",
+            source: RECENT_NODES_SOURCE_ID,
+            paint: {
+                "circle-radius": 4,
+                "circle-color": "yellow",
+                "circle-opacity": 1,
+            },
+        });
+    }
+
+    if (!map.getLayer(PATH_LAYER_ID)) {
+        map.addLayer({
+            id: PATH_LAYER_ID,
+            type: "line",
+            source: PATH_SOURCE_ID,
+            paint: {
+                "line-color": "purple",
+                "line-width": 5,
+            },
+        });
+    }
+
+    if (!map.getLayer(HULL_FILL_LAYER_ID)) {
+        map.addLayer({
+            id: HULL_FILL_LAYER_ID,
+            type: "fill",
+            source: HULL_SOURCE_ID,
+            paint: {
+                "fill-color": "green",
+                "fill-opacity": 0.2,
+            },
+        });
+    }
+
+    if (!map.getLayer(HULL_LINE_LAYER_ID)) {
+        map.addLayer({
+            id: HULL_LINE_LAYER_ID,
+            type: "line",
+            source: HULL_SOURCE_ID,
+            paint: {
+                "line-color": "green",
+                "line-width": 1,
+            },
+        });
+    }
+}
+
+function ensureGeoJsonSource(sourceId) {
+    if (!map.getSource(sourceId)) {
+        map.addSource(sourceId, {
+            type: "geojson",
+            data: {
+                type: "FeatureCollection",
+                features: [],
+            },
+        });
+    }
+}
+
+function addLegendControl() {
+    const existing = document.getElementById("map-legend");
+    if (existing) {
+        return;
+    }
+
+    const container = map.getContainer();
+    const div = document.createElement("div");
+    div.id = "map-legend";
+    div.className = "legend";
+    div.style.position = "absolute";
+    div.style.bottom = "20px";
+    div.style.right = "20px";
+    div.style.zIndex = "1";
+
+    div.innerHTML = `
+        <h4>Legend</h4>
+        <div><span class="box visited"></span> Visited </div>
+        <div><span class="box frontier"></span> Frontier</div>
+        <div><span class="box path"></span> Shortest path</div>
+    `;
+    container.appendChild(div);
+}
+
+function updatePointSource(sourceId, coordinatesList) {
+    const source = map.getSource(sourceId);
+    if (!source) {
+        return;
+    }
+
+    source.setData({
+        type: "FeatureCollection",
+        features: coordinatesList.map((coordinates) => ({
+            type: "Feature",
+            geometry: {
+                type: "Point",
+                coordinates,
+            },
+            properties: {},
+        })),
+    });
+}
+
+function updateLineSource(sourceId, coordinates) {
+    const source = map.getSource(sourceId);
+    if (!source) {
+        return;
+    }
+
+    source.setData({
+        type: "FeatureCollection",
+        features: coordinates.length > 1 ? [
+            {
+                type: "Feature",
+                geometry: {
+                    type: "LineString",
+                    coordinates,
+                },
+                properties: {},
+            },
+        ] : [],
+    });
+}
+
+function updateHullSource(hullFeature) {
+    const source = map.getSource(HULL_SOURCE_ID);
+    if (!source) {
+        return;
+    }
+
+    source.setData({
+        type: "FeatureCollection",
+        features: hullFeature ? [hullFeature] : [],
+    });
 }

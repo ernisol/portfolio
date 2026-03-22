@@ -21,6 +21,7 @@ scripts/
 # OpenStreetMap caches
 saved_graphs/
 cache/
+map_data/
 
 # Dev django DB
 db.sqlite3

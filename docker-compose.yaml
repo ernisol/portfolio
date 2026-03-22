@@ -1,7 +1,9 @@
 services:
 
   django:
-    build: .
+    build:
+      context: .
+      dockerfile: portfolio.Dockerfile
     container_name: portfolio_app
     restart: unless-stopped
     volumes:
@@ -21,6 +23,17 @@ services:
       - static_volume:/static
     depends_on:
       - django
+
+  tileserver:
+    image: maptiler/tileserver-gl:latest
+    container_name: portfolio_tileserver
+    restart: unless-stopped
+    volumes:
+      - ./docker/tileserver-gl:/data
+    command: >
+      tileserver-gl --port 8080 --public_url /tiles/ --file /data/paris.mbtiles --verbose
+    expose:
+      - "8080"
 
 volumes:
   static_volume:

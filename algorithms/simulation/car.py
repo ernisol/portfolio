@@ -141,7 +141,7 @@ class Car:
                 gps_x = x + gps_dx
                 gps_y = y + gps_dy
                 gps_lat, gps_lon = xy_to_latlon(gps_x, gps_y, self.lat0, self.lon0)
-                gps_err = np.linalg.norm([gps_dy, gps_dy])
+                gps_err = np.linalg.norm([gps_dx, gps_dy])
 
                 self.gps_measurements.append(
                     {"time": t, "position": (gps_lat, gps_lon), "error": gps_err}

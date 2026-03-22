@@ -8,3 +8,4 @@
 !projects/*
 !uv.lock
 !.env
+!entrypoint.sh
