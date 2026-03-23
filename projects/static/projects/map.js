@@ -44,6 +44,43 @@ const HULL_SOURCE_ID = "pathfinding-hull-source";
 const HULL_FILL_LAYER_ID = "pathfinding-hull-fill-layer";
 const HULL_LINE_LAYER_ID = "pathfinding-hull-line-layer";
 
+const LEGEND_ITEMS = [
+    {
+        key: "visited",
+        label: "Visited",
+        kind: "point",
+        color: "rgb(189, 241, 0)",
+        layerIds: [OLD_NODES_LAYER_ID],
+        enabled: true,
+    },
+    {
+        key: "frontier",
+        label: "Frontier",
+        kind: "point",
+        color: "yellow",
+        layerIds: [RECENT_NODES_LAYER_ID],
+        enabled: true,
+    },
+    {
+        key: "path",
+        label: "Shortest path",
+        kind: "line",
+        color: "purple",
+        layerIds: [PATH_LAYER_ID],
+        enabled: true,
+    },
+    {
+        key: "hull",
+        label: "Convex hull",
+        kind: "area",
+        color: "rgba(0, 128, 0, 0.2)",
+        layerIds: [HULL_FILL_LAYER_ID, HULL_LINE_LAYER_ID],
+        enabled: true,
+    },
+];
+
+const legendState = Object.fromEntries(LEGEND_ITEMS.map((item) => [item.key, item.enabled]));
+
 let mapReadyResolve;
 const mapReady = new Promise((resolve) => {
     mapReadyResolve = resolve;
@@ -52,6 +89,8 @@ const mapReady = new Promise((resolve) => {
 map.on("load", () => {
     ensureMapLayers();
     addLegendControl();
+    applyLegendState();
+    setPlayButtonState(false);
     mapReadyResolve();
 });
 
@@ -131,11 +170,25 @@ map.on("click",
 );
 
 const playButton = document.getElementById("play");
+const runButton = document.getElementById("run");
+const playButtonIcon = playButton.querySelector(".playButtonIcon");
+const playButtonLabel = playButton.querySelector(".playButtonLabel");
+
+function setPlayButtonState(isPlaying) {
+    playButton.dataset.state = isPlaying ? "playing" : "paused";
+    if (playButtonIcon) {
+        playButtonIcon.textContent = isPlaying ? "||" : ">";
+    }
+    if (playButtonLabel) {
+        playButtonLabel.textContent = isPlaying ? "Pause" : "Play";
+    }
+}
 
 playButton.onclick = () => {
 
     if (playing) {
         playing = false;
+        setPlayButtonState(false);
         return;
     }
 
@@ -144,11 +197,12 @@ playButton.onclick = () => {
 
 // Run button
 
-document.getElementById("run").onclick = async () => {
+runButton.onclick = async () => {
     await mapReady;
 
     // stop playback if it's running
     playing = false;
+    setPlayButtonState(false);
     const startLatLng = startMarker.getLngLat();
     const endLatLng = endMarker.getLngLat();
 
@@ -166,6 +220,7 @@ document.getElementById("run").onclick = async () => {
     });
 
     if (!response.ok) {
+        setPlayButtonState(false);
         return;
     }
 
@@ -177,6 +232,7 @@ document.getElementById("run").onclick = async () => {
     finalPath = pathFeature ? pathFeature.geometry.coordinates : [];
 
     buildHullCache();
+    applyLegendState();
     slider.value = 0;
     slider.dispatchEvent(new Event("input"));
     playButton.click();
@@ -263,6 +319,7 @@ function sliderToStep(value) {
 async function startPlayback() {
 
     playing = true;
+    setPlayButtonState(true);
     while (playing && Number(slider.value) < Number(slider.max)) {
 
         // Trigger input event to render the current step synchronously
@@ -280,6 +337,7 @@ async function startPlayback() {
     }
 
     playing = false;
+    setPlayButtonState(false);
 }
 
 
@@ -402,19 +460,64 @@ function addLegendControl() {
     const container = map.getContainer();
     const div = document.createElement("div");
     div.id = "map-legend";
-    div.className = "legend";
-    div.style.position = "absolute";
-    div.style.bottom = "20px";
-    div.style.right = "20px";
-    div.style.zIndex = "1";
+    div.className = "legend mapLegend";
 
-    div.innerHTML = `
-        <h4>Legend</h4>
-        <div><span class="box visited"></span> Visited </div>
-        <div><span class="box frontier"></span> Frontier</div>
-        <div><span class="box path"></span> Shortest path</div>
-    `;
+    const title = document.createElement("h4");
+    title.textContent = "Legend";
+    div.appendChild(title);
+
+    for (const item of LEGEND_ITEMS) {
+        const row = document.createElement("label");
+        row.className = "legendToggle";
+        row.dataset.legendKey = item.key;
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = legendState[item.key];
+        checkbox.dataset.legendKey = item.key;
+
+        checkbox.addEventListener("change", (event) => {
+            legendState[item.key] = event.target.checked;
+            syncLegendUi(item.key);
+            applyLegendState();
+        });
+
+        const swatch = document.createElement("span");
+        swatch.className = `legendSwatch legendSwatch-${item.kind}`;
+        swatch.style.setProperty("--legend-color", item.color);
+
+        const text = document.createElement("span");
+        text.className = "legendLabel";
+        text.textContent = item.label;
+
+        row.appendChild(checkbox);
+        row.appendChild(swatch);
+        row.appendChild(text);
+        div.appendChild(row);
+
+        syncLegendUi(item.key);
+    }
+
     container.appendChild(div);
+}
+
+function syncLegendUi(key) {
+    const row = document.querySelector(`[data-legend-key="${key}"]`);
+    if (!row) {
+        return;
+    }
+    row.classList.toggle("is-disabled", !legendState[key]);
+}
+
+function applyLegendState() {
+    for (const item of LEGEND_ITEMS) {
+        const visibility = legendState[item.key] ? "visible" : "none";
+        for (const layerId of item.layerIds) {
+            if (map.getLayer(layerId)) {
+                map.setLayoutProperty(layerId, "visibility", visibility);
+            }
+        }
+    }
 }
 
 function updatePointSource(sourceId, coordinatesList) {

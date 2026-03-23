@@ -6,11 +6,11 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import ensure_csrf_cookie
 
-from algorithms.utils import feature_collection, line_feature, point_feature, polygon_feature
 from algorithms.pathfinding.utils import solve as solve_pathfinding
 from algorithms.simulation.car import Car
 from algorithms.simulation.estimators import KalmanCarFilter, dead_reckoning
 from algorithms.simulation.utils import latlon_to_xy
+from algorithms.utils import feature_collection, line_feature, point_feature, polygon_feature
 from projects import Timer, logger
 from projects.graph_loading import load_graph
 
@@ -79,6 +79,30 @@ def solve_kalman(request):
     data = json.loads(request.body)
     start = tuple(data["start"])
     goal = tuple(data["goal"])
+
+    try:
+        gps_std = float(data.get("gps_std", 5))
+        acc_std = float(data.get("acc_std", 0.1))
+        acc_drift = float(data.get("acc_drift", 0.01))
+    # Disabling formatting for black here (python 3.14 requires parentheses around multiple
+    # except types but black formats it without)
+    # fmt: off
+    except (TypeError, ValueError):
+        # fmt: on
+        return JsonResponse(
+            {"error": "gps_std, acc_std, and acc_drift must be numeric values."}, status=400
+        )
+
+    gps_std = min(50.0, max(0.1, gps_std))
+    acc_std = min(1.0, max(0.01, acc_std))
+    acc_drift = min(0.1, max(0.0, acc_drift))
+    logger.info(
+        "Kalman simulation parameters: gps_std=%.3f, acc_std=%.3f, acc_drift=%.3f",
+        gps_std,
+        acc_std,
+        acc_drift,
+    )
+
     graph = load_graph()
 
     # Solve pathfinding
@@ -91,9 +115,9 @@ def solve_kalman(request):
         car = Car(
             path,
             dt=1,
-            gps_std=5,
-            accelerometer_std=0.1,
-            acc_drift=0.01,
+            gps_std=gps_std,
+            accelerometer_std=acc_std,
+            acc_drift=acc_drift,
             gps_frequency=1,
         )
         car.simulate()

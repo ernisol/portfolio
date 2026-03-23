@@ -11,22 +11,51 @@
 
 <body>
 
-    <div id="map"></div>
+    <div class="mapWithControls">
+        <div class="col3">
+            <div class="spacer"></div>
+            <div id="mapPane">
+                <div id="map"></div>
+            </div>
+            <div class="spacer"></div>
 
-    <input id="timeline" type="range" min="1" max="1000" value="1">
-    <label for="algorithm">Algorithm:</label>
-    <select id="algorithm">
-        <option value="bfs">BFS</option>
-        <option value="djikstra">Dijkstra</option>
-        <option value="a_star">A*</option>
-    </select>
-    <br>
-    <button id="run">Run</button>
-    <button id="play">Play</button>
+            <div class="spacer"></div>
+            <input id="timeline" type="range" min="1" max="1000" value="1">
+            <div class="spacer"></div>
+
+            <div class="spacer"></div>
+            <div class="mapControlRow">
+                <label for="algorithm">Algorithm:</label>
+                <select id="algorithm">
+                    <option value="bfs">BFS</option>
+                    <option value="djikstra">Dijkstra</option>
+                    <option value="a_star">A*</option>
+                </select>
+            </div>
+            <div class="spacer"></div>
+
+            <div class="spacer"></div>
+            <div class="mapControlRow">
+                <div class="mapActionsRow">
+                    <button id="run" class="actionButton runButton">Run</button>
+                    <button id="play" class="actionButton playButton" data-state="paused">
+                        <span class="playButtonIcon">&gt;</span>
+                        <span class="playButtonLabel">Play</span>
+                    </button>
+                </div>
+            </div>
+            <div class="spacer"></div>
+        </div>
+    </div>
 
     <script src="https://unpkg.com/maplibre-gl@5.21.0/dist/maplibre-gl.js"></script>
     <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
-    <script src="{% static 'projects/map.js' %}"></script>
+    <script src="{% static 'projects/shared-utils.js' %}"></script>
+    <script src="{% static 'projects/map/constants.js' %}"></script>
+    <script src="{% static 'projects/map/state.js' %}"></script>
+    <script src="{% static 'projects/map/layers.js' %}"></script>
+    <script src="{% static 'projects/map/simulation.js' %}"></script>
+    <script src="{% static 'projects/map/ui.js' %}"></script>
 
 </body>
 

@@ -1,28 +1,33 @@
-.mapWithControls{
+.mapWithControls {
     height: 65vh;
 }
-#map{
+
+#mapPane {
+    position: relative;
+}
+
+#map {
     height: 55vh;
     border-color: black;
     border-style: solid;
 }
 
-.chartDiv{
+.chartDiv {
     max-height: 300px;
     max-width: 65vw;
 }
 
-#timeline{
+#timeline {
     width: 100%;
     margin: 10px 0;
 }
 
-.col3{
-display: grid;
-  grid-template-columns: 15% auto 15%;
+.col3 {
+    display: grid;
+    grid-template-columns: 15% auto 15%;
 }
 
-.scrollableDiv{
+.scrollableDiv {
     height: 30vh;
     overflow-y: scroll;
 }
@@ -31,7 +36,7 @@ display: grid;
     background: white;
     padding: 10px;
     border-radius: 6px;
-    box-shadow: 0 0 6px rgba(0,0,0,0.3);
+    box-shadow: 0 0 6px rgba(0, 0, 0, 0.3);
     font-family: sans-serif;
     font-size: 14px;
 }
@@ -44,6 +49,168 @@ display: grid;
     display: flex;
     align-items: center;
     margin-bottom: 4px;
+}
+
+.kalmanLegend,
+.mapLegend {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    z-index: 3;
+    min-width: 220px;
+}
+
+.legendToggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.legendToggle input {
+    margin: 0;
+}
+
+.legendToggle.is-disabled {
+    opacity: 0.45;
+}
+
+.legendLabel {
+    line-height: 1.2;
+}
+
+.legendSwatch {
+    display: inline-flex;
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    color: var(--legend-color);
+}
+
+.legendSwatch-line {
+    width: 18px;
+    height: 0;
+    border-top: 3px solid currentColor;
+}
+
+.legendSwatch-point {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.legendSwatch-ellipse {
+    border: 1px solid red;
+    border-radius: 999px;
+    background: var(--legend-color);
+}
+
+.legendSwatch-area {
+    border: 1px solid green;
+    border-radius: 3px;
+    background: var(--legend-color);
+}
+
+.mapActionsRow {
+    margin-top: 8px;
+    display: inline-flex;
+    gap: 10px;
+}
+
+.mapControlRow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.mapControlRow select {
+    min-width: 140px;
+}
+
+.actionButton {
+    border: 0;
+    border-radius: 999px;
+    padding: 8px 16px;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 120ms ease, opacity 120ms ease;
+}
+
+.actionButton:hover {
+    transform: translateY(-1px);
+}
+
+.actionButton:active {
+    transform: translateY(0);
+    opacity: 0.9;
+}
+
+.runButton {
+    background: #0a8f5a;
+}
+
+.playButton {
+    background: #0f5dcf;
+}
+
+.playButton[data-state="playing"] {
+    background: #9a4f05;
+}
+
+.playButtonIcon {
+    display: inline-block;
+    width: 1.4em;
+    text-align: center;
+    margin-right: 4px;
+}
+
+.controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    padding: 10px 12px;
+}
+
+.kalmanOverlay {
+    position: absolute;
+    z-index: 2;
+    top: 10px;
+    left: 10px;
+    width: min(300px, calc(100% - 20px));
+}
+
+.kalmanOverlay h3 {
+    margin: 0;
+    font-size: 14px;
+}
+
+.kalmanOverlay label {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 12px;
+}
+
+.kalmanOverlay input[type="range"] {
+    width: 100%;
+}
+
+.overlayActions {
+    display: flex;
+    gap: 8px;
+}
+
+.overlayActions button {
+    flex: 1;
 }
 
 .box {
@@ -62,4 +229,26 @@ display: grid;
 
 .visited {
     background: orange;
+}
+
+@media (max-width: 900px) {
+    .col3 {
+        grid-template-columns: 5% auto 5%;
+    }
+
+    .kalmanOverlay {
+        width: min(260px, calc(100% - 20px));
+    }
+
+    .kalmanLegend {
+        min-width: 200px;
+    }
+
+    .mapLegend {
+        min-width: 200px;
+    }
+
+    .mapControlRow {
+        justify-content: flex-start;
+    }
 }

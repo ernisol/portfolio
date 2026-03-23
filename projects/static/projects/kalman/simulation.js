@@ -1,366 +1,3 @@
-const csrftoken = getCookie("csrftoken");
-
-const lat = 48.85997;
-const lng = 2.34395;
-const height = 14;
-var totalSimulationTime = 100;
-const animationSpeedUpFactor = 10; // Total duration of the animation will be divided by this
-
-const MAP_STYLE_URL = "/tiles/styles/basic-preview/style.json";
-
-function normalizeAbsoluteUrl(url) {
-    if (/^https?:\/\//i.test(url)) {
-        return url;
-    }
-    return new URL(url, window.location.origin).toString();
-}
-
-const map = new maplibregl.Map({
-    container: "map",
-    style: MAP_STYLE_URL,
-    transformRequest: (url) => ({
-        url: normalizeAbsoluteUrl(url),
-    }),
-    center: [lng, lat],
-    zoom: height,
-    minZoom: height - 1,
-    maxBounds: [
-        [lng - 0.1, lat - 0.1],
-        [lng + 0.1, lat + 0.1],
-    ],
-    attributionControl: true,
-});
-
-map.dragRotate.disable();
-map.touchZoomRotate.disableRotation();
-
-const PATH_SOURCE_ID = "kalman-path-source";
-const PATH_KALMAN_SOURCE_ID = "kalman-kalman-source";
-const PATH_KALMAN_LAYER_ID = "kalman-kalman-layer";
-const PATH_LAYER_ID = "kalman-path-layer";
-const POINTS_SOURCE_ID = "kalman-points-source";
-const POINTS_LAYER_ID = "kalman-points-layer";
-const ELLIPSE_SOURCE_ID = "kalman-ellipse-source";
-const ELLIPSE_FILL_LAYER_ID = "kalman-ellipse-fill-layer";
-const ELLIPSE_STROKE_LAYER_ID = "kalman-ellipse-stroke-layer";
-const HIDDEN_POINT_KIND = "__hidden__";
-
-const LEGEND_ITEMS = [
-    {
-        key: "ground_truth_path",
-        label: "Ground truth path",
-        kind: "line",
-        color: "green",
-        layerIds: [PATH_LAYER_ID],
-        enabled: true,
-    },
-    {
-        key: "kalman_path",
-        label: "Kalman path",
-        kind: "line",
-        color: "red",
-        layerIds: [PATH_KALMAN_LAYER_ID],
-        enabled: true,
-    },
-    {
-        key: "ground_truth_point",
-        label: "Ground truth point",
-        kind: "point",
-        color: "lime",
-        pointKind: "ground_truth",
-        enabled: true,
-    },
-    {
-        key: "dead_reckoning_point",
-        label: "Dead reckoning",
-        kind: "point",
-        color: "orange",
-        pointKind: "dead_reckoning",
-        enabled: true,
-    },
-    {
-        key: "gps_point",
-        label: "GPS measurement",
-        kind: "point",
-        color: "purple",
-        pointKind: "gps",
-        enabled: true,
-    },
-    {
-        key: "kalman_point",
-        label: "Kalman estimate",
-        kind: "point",
-        color: "red",
-        pointKind: "kalman",
-        enabled: true,
-    },
-    {
-        key: "ellipse",
-        label: "Uncertainty ellipse",
-        kind: "ellipse",
-        color: "rgba(255, 0, 0, 0.25)",
-        layerIds: [ELLIPSE_FILL_LAYER_ID, ELLIPSE_STROKE_LAYER_ID],
-        enabled: true,
-    },
-];
-
-const legendState = Object.fromEntries(LEGEND_ITEMS.map((item) => [item.key, item.enabled]));
-
-let mapReadyResolve;
-const mapReady = new Promise((resolve) => {
-    mapReadyResolve = resolve;
-});
-
-map.on("load", () => {
-    ensureKalmanLayers();
-    addLegendControl();
-    applyLegendState();
-    mapReadyResolve();
-});
-
-const slider = document.getElementById("timeline");
-const gpsStdInput = document.getElementById("gpsStd");
-const accStdInput = document.getElementById("accStd");
-const accDriftInput = document.getElementById("accDrift");
-const gpsStdValue = document.getElementById("gpsStdValue");
-const accStdValue = document.getElementById("accStdValue");
-const accDriftValue = document.getElementById("accDriftValue");
-
-const DEFAULT_GPS_STD = 5;
-const DEFAULT_ACC_STD = 0.1;
-const DEFAULT_ACC_DRIFT = 0.01;
-
-function clamp(value, min, max) {
-    return Math.min(max, Math.max(min, value));
-}
-
-function parseSensorInput(input, fallback, min, max) {
-    const parsed = Number.parseFloat(input.value);
-    if (!Number.isFinite(parsed)) {
-        return fallback;
-    }
-    return clamp(parsed, min, max);
-}
-
-function updateSensorLabels() {
-    gpsStdValue.textContent = parseSensorInput(gpsStdInput, DEFAULT_GPS_STD, 0.1, 50).toFixed(1);
-    accStdValue.textContent = parseSensorInput(accStdInput, DEFAULT_ACC_STD, 0.01, 1).toFixed(2);
-    accDriftValue.textContent = parseSensorInput(accDriftInput, DEFAULT_ACC_DRIFT, 0, 0.1).toFixed(3);
-}
-
-gpsStdInput.addEventListener("input", updateSensorLabels);
-accStdInput.addEventListener("input", updateSensorLabels);
-accDriftInput.addEventListener("input", updateSensorLabels);
-updateSensorLabels();
-
-slider.addEventListener("input", () => {
-    const value = sliderToTime(Number(slider.value));
-    renderCar(value);
-});
-
-const speedChartCtx = document.getElementById('speedChart').getContext('2d');
-const speedChart = new Chart(speedChartCtx, {
-    type: 'line',
-    data: {
-        datasets: [
-            {
-                label: 'Ground truth',
-                data: [],
-                borderColor: 'green',
-                borderWidth: 2,
-                pointRadius: 0
-            },
-            {
-                label: 'Kalman',
-                data: [],
-                borderColor: 'red',
-                borderWidth: 2,
-                pointRadius: 0
-            }
-        ]
-    },
-    options: {
-        maintainAspectRatio: false,
-        animation: false,
-        parsing: false,
-        scales: {
-            x: { type: 'linear', title: { display: true, text: 'Time (s)' } },
-            y: { title: { display: true, text: 'Speed (m/s)' } }
-        }
-    }
-});
-
-const accChartCtx = document.getElementById('accChart').getContext('2d');
-const accChart = new Chart(accChartCtx, {
-    type: 'line',
-    data: {
-        datasets: [
-            {
-                label: 'Ground truth',
-                data: [],
-                borderColor: 'green',
-                borderWidth: 2,
-                pointRadius: 0
-            },
-            {
-                label: 'Measured',
-                data: [],
-                borderColor: 'orange',
-                borderWidth: 2,
-                pointRadius: 0
-            },
-            {
-                label: 'Kalman',
-                data: [],
-                borderColor: 'red',
-                borderWidth: 2,
-                pointRadius: 0
-            }
-        ]
-    },
-    options: {
-        maintainAspectRatio: false,
-        animation: false,
-        parsing: false,
-        scales: {
-            x: { type: 'linear', title: { display: true, text: 'Time (s)' } },
-            y: { title: { display: true, text: 'Acceleration (m/s²)' }, max: 2 }
-        }
-    }
-});
-
-const errChartCtx = document.getElementById('errChart').getContext('2d');
-const errChart = new Chart(errChartCtx, {
-    type: 'line',
-    data: {
-        datasets: [
-            {
-                label: 'Kalman',
-                data: [],
-                borderColor: 'red',
-                borderWidth: 2,
-                pointRadius: 0
-            },
-            {
-                label: 'GPS',
-                data: [],
-                borderColor: 'purple',
-                borderWidth: 2,
-                pointRadius: 0
-            },
-            {
-                label: 'Dead reckoning',
-                data: [],
-                borderColor: 'orange',
-                borderWidth: 2,
-                pointRadius: 0
-            }
-        ]
-    },
-    options: {
-        maintainAspectRatio: false,
-        animation: false,
-        parsing: false,
-        scales: {
-            x: { type: 'linear', title: { display: true, text: 'Time (s)' } },
-            y: { title: { display: true, text: 'Estimation error (m)' }, max: 100 }
-        }
-    }
-});
-
-// Blue start marker, red end marker
-var startMarker = new maplibregl.Marker({
-    element: buildMarkerElement(
-        "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png"
-    ),
-    anchor: "bottom",
-})
-    .setLngLat([lng - 0.01, lat - 0.01])
-    .addTo(map);
-
-var endMarker = new maplibregl.Marker({
-    element: buildMarkerElement(
-        "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png"
-    ),
-    anchor: "bottom",
-})
-    .setLngLat([lng + 0.01, lat + 0.01])
-    .addTo(map);
-
-var settingStart = false;
-var settingEnd = false;
-
-let playing = false;
-
-var simulationData = null;
-
-var ellipsePoints = [];
-var carPositions = [];
-var deadReckoning = [];
-var gpsMeasurements = [];
-var gptsTimes = [];
-var simulationTimes = [];
-var kalmanTimes = [];
-var kalmanPositions = [];
-
-startMarker.getElement().addEventListener("click", function (event) {
-    event.stopPropagation();
-    settingStart = true;
-    settingEnd = false;
-    // Fade the start marker 50% to indicate it's selected
-    startMarker.getElement().style.opacity = "0.5";
-});
-
-endMarker.getElement().addEventListener("click", function (event) {
-    event.stopPropagation();
-    settingStart = false;
-    settingEnd = true;
-    // Fade the end marker 50% to indicate it's selected
-    endMarker.getElement().style.opacity = "0.5";
-});
-
-map.on("click",
-    function (e) {
-        const clickedLat = e.lngLat.lat;
-        const clickedLon = e.lngLat.lng;
-
-        if (settingStart) {
-            startMarker.setLngLat([clickedLon, clickedLat]);
-            // Restore opacity of the start marker
-            startMarker.getElement().style.opacity = "1.0";
-        } else if (settingEnd) {
-            endMarker.setLngLat([clickedLon, clickedLat]);
-            // Restore opacity of the end marker
-            endMarker.getElement().style.opacity = "1.0";
-        }
-        settingEnd = false;
-        settingStart = false;
-        main();
-    }
-);
-
-const playButton = document.getElementById("play");
-
-playButton.onclick = () => {
-
-    if (playing) {
-        playing = false;
-        return;
-    }
-
-    startPlayback();
-};
-
-// Run button
-function toXY(data, xKey, yKey) {
-    return data.map(d => ({
-        x: d[xKey],
-        y: d[yKey]
-    }));
-}
-
-const runButton = document.getElementById("run")
-
 function sortByTime(features) {
     return [...features].sort((a, b) => a.properties.time - b.properties.time);
 }
@@ -370,6 +7,7 @@ async function main() {
 
     // stop playback if it's running
     playing = false;
+    setPlayButtonState(false);
     const gpsStd = parseSensorInput(gpsStdInput, DEFAULT_GPS_STD, 0.1, 50);
     const accStd = parseSensorInput(accStdInput, DEFAULT_ACC_STD, 0.01, 1);
     const accDrift = parseSensorInput(accDriftInput, DEFAULT_ACC_DRIFT, 0, 0.1);
@@ -392,6 +30,7 @@ async function main() {
     });
 
     if (!response.ok) {
+        setPlayButtonState(false);
         return;
     }
 
@@ -454,15 +93,12 @@ async function main() {
 
     applyLegendState();
 
-
     speedChart.options.scales.x.max = totalSimulationTime;
     accChart.options.scales.x.max = totalSimulationTime;
     errChart.options.scales.x.max = totalSimulationTime;
     slider.value = 0;
-    startPlayback()
-};
-
-runButton.onclick = main;
+    startPlayback();
+}
 
 async function renderCar(time) {
     await mapReady;
@@ -498,7 +134,6 @@ async function renderCar(time) {
         });
     }
 
-
     speedChart.data.datasets[0].data = toXY(simulationData.ground_truth.slice(0, positionIndex), "time", "speed");
     speedChart.data.datasets[1].data = toXY(simulationData.kalman.slice(0, kalmanIndex), "time", "speed");
     speedChart.update();
@@ -524,8 +159,8 @@ function getClosestCeil(times, targetTime) {
         const time = times[mid];
 
         if (time >= targetTime) {
-            result = mid; // possible answer
-            right = mid - 1;       // try to find a closer one
+            result = mid;
+            right = mid - 1;
         } else {
             left = mid + 1;
         }
@@ -542,30 +177,21 @@ function sliderToTime(value) {
 async function startPlayback() {
 
     playing = true;
-    var sleepTime = 1000 * totalSimulationTime / animationSpeedUpFactor / Number(slider.max);  // ms by step
-    console.warn(sleepTime);
-    console.warn(Number(slider.max));
+    setPlayButtonState(true);
+    var sleepTime = 1000 * totalSimulationTime / animationSpeedUpFactor / Number(slider.max);
     while (playing && Number(slider.value) < Number(slider.max)) {
         const startTime = performance.now();
         slider.dispatchEvent(new Event("input"));
         const elapsed = performance.now() - startTime;
-        if (elapsed < sleepTime)
+        if (elapsed < sleepTime) {
             await new Promise(r => setTimeout(r, sleepTime - elapsed));
+        }
 
         slider.value = Number(slider.value) + 1;
     }
 
     playing = false;
-}
-
-function buildMarkerElement(iconUrl) {
-    const el = document.createElement("img");
-    el.src = iconUrl;
-    el.style.width = "25px";
-    el.style.height = "41px";
-    el.style.cursor = "pointer";
-    el.style.userSelect = "none";
-    return el;
+    setPlayButtonState(false);
 }
 
 function ensureKalmanLayers() {
@@ -591,7 +217,6 @@ function ensureKalmanLayers() {
         });
     }
 
-
     if (!map.getSource(PATH_KALMAN_SOURCE_ID)) {
         map.addSource(PATH_KALMAN_SOURCE_ID, {
             type: "geojson",
@@ -613,7 +238,6 @@ function ensureKalmanLayers() {
             },
         });
     }
-
 
     if (!map.getSource(POINTS_SOURCE_ID)) {
         map.addSource(POINTS_SOURCE_ID, {
@@ -818,24 +442,4 @@ function updatePolygonSource(sourceId, ring) {
             },
         ],
     });
-}
-
-
-function getCookie(name) {
-    let cookieValue = null;
-
-    if (document.cookie && document.cookie !== "") {
-        const cookies = document.cookie.split(";");
-
-        for (let cookie of cookies) {
-            cookie = cookie.trim();
-
-            if (cookie.startsWith(name + "=")) {
-                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                break;
-            }
-        }
-    }
-
-    return cookieValue;
 }

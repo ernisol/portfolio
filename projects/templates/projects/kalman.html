@@ -14,16 +14,37 @@
     <div class="mapWithControls">
         <div class="col3">
             <div class="spacer"></div>
-            <div id="map"></div>
+            <div id="mapPane">
+                <div id="map"></div>
+                <div class="kalmanOverlay controls">
+                    <h3>Simulation Inputs</h3>
+                    <label for="gpsStd">GPS std (m)
+                        <span id="gpsStdValue">5.0</span>
+                    </label>
+                    <input id="gpsStd" type="range" min="0.1" max="50" step="0.1" value="5">
+
+                    <label for="accStd">Accel std (m/s^2)
+                        <span id="accStdValue">0.10</span>
+                    </label>
+                    <input id="accStd" type="range" min="0.01" max="1" step="0.01" value="0.1">
+
+                    <label for="accDrift">Accel drift (m/s^2)
+                        <span id="accDriftValue">0.010</span>
+                    </label>
+                    <input id="accDrift" type="range" min="0" max="0.1" step="0.001" value="0.01">
+
+                    <div class="overlayActions">
+                        <button id="run" class="actionButton runButton">Run</button>
+                        <button id="play" class="actionButton playButton" data-state="paused">
+                            <span class="playButtonIcon">&gt;</span>
+                            <span class="playButtonLabel">Play</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
             <div class="spacer"></div>
             <div class="spacer"></div>
             <input id="timeline" type="range" min="1" max="1000" value="1">
-            <div class="spacer"></div>
-            <div class="spacer"></div>
-            <div class="controls">
-                <button id="run">Run</button>
-                <button id="play">Play</button>
-            </div>
             <div class="spacer"></div>
         </div>
     </div>
@@ -48,7 +69,11 @@
     </div>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/maplibre-gl@5.21.0/dist/maplibre-gl.js"></script>
-    <script src="{% static 'projects/kalman.js' %}"></script>
+    <script src="{% static 'projects/shared-utils.js' %}"></script>
+    <script src="{% static 'projects/kalman/constants.js' %}"></script>
+    <script src="{% static 'projects/kalman/state.js' %}"></script>
+    <script src="{% static 'projects/kalman/simulation.js' %}"></script>
+    <script src="{% static 'projects/kalman/ui.js' %}"></script>
 
 </body>
 
